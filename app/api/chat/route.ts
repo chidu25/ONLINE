@@ -4,9 +4,10 @@ import { buildPrompt, callOpenRouter } from '@/lib/chat';
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { prompt, sessionId = 'default' } = body as {
+  const { prompt, sessionId = 'default', modelId } = body as {
     prompt?: string;
     sessionId?: string;
+    modelId?: string;
   };
 
   if (!prompt || !prompt.trim()) {
@@ -18,10 +19,10 @@ export async function POST(request: Request) {
 
   const history = getMessages(sessionId);
   try {
-    const reply = await callOpenRouter(buildPrompt(history));
+    const { reply, model } = await callOpenRouter(buildPrompt(history), modelId);
     addMessage(sessionId, 'assistant', reply);
     const messages = getMessages(sessionId);
-    return NextResponse.json({ reply, messages });
+    return NextResponse.json({ reply, messages, model });
   } catch (error) {
     addMessage(
       sessionId,

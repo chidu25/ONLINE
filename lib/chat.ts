@@ -1,4 +1,5 @@
 import { MessageRecord } from './db';
+import { getModelOption, ModelOption } from './models';
 
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -12,13 +13,13 @@ export function buildPrompt(messages: MessageRecord[]): ChatMessage[] {
   }));
 }
 
-export async function callOpenRouter(messages: ChatMessage[]) {
+export async function callOpenRouter(messages: ChatMessage[], requestedModelId?: string) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY is not configured.');
   }
 
-  const model = process.env.OPENROUTER_MODEL || 'nousresearch/nous-hermes-llama2-13b';
+  const model = getModelOption(requestedModelId);
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -29,7 +30,7 @@ export async function callOpenRouter(messages: ChatMessage[]) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model,
+      model: model.id,
       messages,
       temperature: 0.7,
       max_tokens: 600
@@ -48,5 +49,5 @@ export async function callOpenRouter(messages: ChatMessage[]) {
     throw new Error('OpenRouter returned an empty response.');
   }
 
-  return reply;
+  return { reply, model } satisfies { reply: string; model: ModelOption };
 }
