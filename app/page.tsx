@@ -19,13 +19,13 @@ export default function HomePage() {
 
   async function parseResponse(res: Response) {
     const text = await res.text();
-    if (!text.trim()) {
-      return {};
+    if (!text) {
+      throw new Error('Server returned an empty response.');
     }
     try {
       return JSON.parse(text);
     } catch {
-      throw new Error(text || 'Response was not valid JSON.');
+      throw new Error(text);
     }
   }
 
