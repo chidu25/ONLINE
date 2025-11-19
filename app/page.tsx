@@ -17,12 +17,24 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function parseResponse(res: Response) {
+    const text = await res.text();
+    if (!text) {
+      throw new Error('Server returned an empty response.');
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(text);
+    }
+  }
+
   useEffect(() => {
     const controller = new AbortController();
     fetch(`/api/messages?sessionId=${encodeURIComponent(sessionId)}`, {
       signal: controller.signal
     })
-      .then((res) => res.json())
+      .then((res) => parseResponse(res))
       .then((data) => setMessages(data.messages || []))
       .catch((err) => {
         if (err.name !== 'AbortError') {
@@ -56,9 +68,9 @@ export default function HomePage() {
         },
         body: JSON.stringify({ prompt: userMessage, sessionId })
       });
-      const data = await res.json();
+      const data = await parseResponse(res);
       if (!res.ok) {
-        throw new Error(data.error || 'Unknown server error');
+        throw new Error(data?.error || `Server error (${res.status})`);
       }
       setMessages(data.messages || []);
     } catch (err) {
