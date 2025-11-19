@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { modelOptions, ModelOption } from '@/lib/models';
 
 type Message = {
   id: number;
@@ -16,13 +17,27 @@ export default function HomePage() {
   const [customSession, setCustomSession] = useState('default');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modelId, setModelId] = useState(modelOptions[0]?.id ?? '');
+  const [modelMeta, setModelMeta] = useState<ModelOption>(modelOptions[0]);
+
+  async function parseResponse(res: Response) {
+    const text = await res.text();
+    if (!text.trim()) {
+      return {};
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(text || 'Response was not valid JSON.');
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
     fetch(`/api/messages?sessionId=${encodeURIComponent(sessionId)}`, {
       signal: controller.signal
     })
-      .then((res) => res.json())
+      .then((res) => parseResponse(res))
       .then((data) => setMessages(data.messages || []))
       .catch((err) => {
         if (err.name !== 'AbortError') {
@@ -54,13 +69,17 @@ export default function HomePage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ prompt: userMessage, sessionId })
+        body: JSON.stringify({ prompt: userMessage, sessionId, modelId })
       });
-      const data = await res.json();
+      const data = await parseResponse(res);
       if (!res.ok) {
-        throw new Error(data.error || 'Unknown server error');
+        throw new Error(data?.error || `Server error (${res.status})`);
       }
       setMessages(data.messages || []);
+      if (data.model?.id) {
+        setModelId(data.model.id);
+        setModelMeta(data.model);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -80,6 +99,11 @@ export default function HomePage() {
         ? 'Waiting for the uncensored model to respond...'
         : 'Ask anything. The conversation is stored securely on the server.',
     [loading]
+  );
+
+  const activeModel = useMemo(
+    () => modelOptions.find((option) => option.id === modelId) || modelMeta,
+    [modelId, modelMeta]
   );
 
   return (
@@ -143,6 +167,42 @@ export default function HomePage() {
             </button>
           </form>
           <div style={{ color: 'var(--muted)' }}>Active session: {sessionId}</div>
+        </section>
+
+        <section
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            alignItems: 'center'
+          }}
+        >
+          <label style={{ flex: '1 1 260px' }}>
+            <span style={{ display: 'block', marginBottom: '0.35rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
+              Choose an OpenRouter model
+            </span>
+            <select
+              value={modelId}
+              onChange={(e) => setModelId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                borderRadius: 12,
+                border: '1px solid #1f2937',
+                background: 'var(--card)',
+                color: 'var(--foreground)'
+              }}
+            >
+              {modelOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label} · {option.censored ? 'Censored' : 'Uncensored'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div style={{ color: 'var(--muted)', flex: '1 1 200px' }}>
+            Active model: {activeModel.label} ({activeModel.censored ? 'Censored' : 'Uncensored'})
+          </div>
         </section>
 
         <section
